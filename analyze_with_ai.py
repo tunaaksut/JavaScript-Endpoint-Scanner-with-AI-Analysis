@@ -195,22 +195,46 @@ def analyze_screenshots_with_vision(screenshots: List[Dict], api_key: str, model
                         "content": [
                             {
                                 "type": "text",
-                                "text": """Bu web sayfası görüntüsünde GÜVENLİK SORUNLARI var mı?
+                                "text": """Sen bir penetrasyon testçisisin. Bu görüntüde EXPLOIT potansiyeli ara.
 
-Ara:
-- Stack traces (hata mesajları)
-- "Development Mode", "Debug Mode" yazıları
-- Veritabanı hataları (SQL errors)
-- API key'ler veya token'lar
-- Admin/Dashboard giriş formları
-- Şüpheli console logları
+HEDEF: "Bu panel ne?" değil, "Bu nasıl exploit edilebilir?"
 
-issues_found=true ise mutlaka description yaz.
+ARA ve BAĞLA:
+
+1. DEBUG PANELS:
+   - Console output, debug toolbar, developer info
+   - EXPLOIT: Internal state leak, database queries görünür
+   - İLGİLİ ENDPOINT: /api/debug, /health gibi
+
+2. ERROR STACK TRACES:
+   - File paths (/var/www/app/src/...)
+   - Function names (getUser, adminQuery)
+   - EXPLOIT: Internal structure leak, code logic anlama
+   - İLGİLİ ENDPOINT: Hatayı tetikleyen API (ör: /api/users/invalid)
+
+3. JS CONFIG/SECRETS LEAK:
+   - API keys, tokens, secrets görünür
+   - EXPLOIT: Direkt kullan, privilege escalation
+   - İLGİLİ ENDPOINT: Config'i kullanan endpoint'ler
+
+4. API KEY/TOKEN HINTS:
+   - Bearer tokens, JWT'ler, session ID'ler
+   - EXPLOIT: Token reuse, session hijacking
+   - İLGİLİ ENDPOINT: Authorization header gereken endpoint'ler
+
+5. GRAPHQL/API PLAYGROUND:
+   - Introspection enabled, schema görünür
+   - EXPLOIT: Tüm query'leri keşfet, IDOR test et
+   - İLGİLİ ENDPOINT: /graphql, /api/playground
+
+Bulgu varsa: MUTLAKA hangi endpoint ile ilişkili olduğunu belirt!
 
 JSON formatında yanıtla:
 {
   "issues_found": boolean,
-  "description": "string",
+  "exploit_type": "Debug Panel|Stack Trace|Config Leak|API Key|GraphQL|Other",
+  "description": "Ne bulundu ve nasıl exploit edilebilir",
+  "related_endpoint": "/path/to/vulnerable/endpoint veya unknown",
   "severity": "Critical|High|Medium|Low|Info"
 }"""
                             },
@@ -240,9 +264,13 @@ JSON formatında yanıtla:
             # Sonucu göster
             if result.get('issues_found'):
                 severity = result.get('severity', 'Unknown')
-                print(f"    ⚠️  {severity}: {result.get('description', 'N/A')[:80]}")
+                exploit_type = result.get('exploit_type', 'Unknown')
+                endpoint = result.get('related_endpoint', 'unknown')
+                print(f"    🎯 {severity} - {exploit_type}")
+                print(f"       Endpoint: {endpoint}")
+                print(f"       Exploit: {result.get('description', 'N/A')[:100]}")
             else:
-                print(f"    ✅ Sorun bulunamadı")
+                print(f"    ✅ Exploit potansiyeli bulunamadı")
         
         except json.JSONDecodeError as e:
             print(f"    ❌ JSON parse hatası: {e}")
@@ -323,11 +351,11 @@ def display_vision_analysis(vision_results: Dict):
     issues = [r for r in results if r.get('issues_found')]
     
     if not issues:
-        print("✅ Screenshot'larda görsel güvenlik sorunu tespit edilmedi!")
+        print("✅ Screenshot'larda exploit potansiyeli bulunamadı!")
         return
     
     print("\n" + "=" * 60)
-    print("👁️  GÖRSEL GÜVENLİK ANALİZİ")
+    print("👁️  GÖRSEL EXPLOIT ANALİZİ")
     print("=" * 60)
     
     # Severity'ye göre sırala
@@ -336,16 +364,19 @@ def display_vision_analysis(vision_results: Dict):
     
     for idx, issue in enumerate(issues, 1):
         severity = issue.get('severity', 'Unknown')
+        exploit_type = issue.get('exploit_type', 'Unknown')
         url = issue.get('url', 'N/A')
         desc = issue.get('description', 'No description')
+        endpoint = issue.get('related_endpoint', 'unknown')
         
         # Icon
         icons = {'Critical': '🔴', 'High': '🟠', 'Medium': '🟡', 'Low': '🔵', 'Info': '⚪'}
         icon = icons.get(severity, '⚪')
         
-        print(f"\n{icon} [{severity}] Screenshot #{idx}")
+        print(f"\n{icon} [{severity}] {exploit_type} - Screenshot #{idx}")
         print(f"   URL: {url[:80]}")
-        print(f"   Tespit: {desc}")
+        print(f"   Related Endpoint: {endpoint}")
+        print(f"   Exploit: {desc}")
     
     print("\n" + "=" * 60)
 
