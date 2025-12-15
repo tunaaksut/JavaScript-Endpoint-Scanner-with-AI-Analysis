@@ -58,6 +58,16 @@ class NetworkRequest:
 
 
 @dataclass
+class Screenshot:
+    """Captured page screenshot for Vision API"""
+    url: str
+    timestamp: str
+    base64_image: str  # Base64 encoded PNG
+    width: int
+    height: int
+
+
+@dataclass
 class CrawlConfig:
     """Crawl configuration"""
     target_url: str
@@ -92,6 +102,7 @@ class RuntimeCrawler:
         self.config = config
         self.discovered_endpoints: Set[str] = set()
         self.network_log: List[NetworkRequest] = []
+        self.screenshots: List[Screenshot] = []  # Screenshot'lar Vision API için
         self.visited_urls: Set[str] = set()
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
@@ -158,11 +169,13 @@ class RuntimeCrawler:
         return {
             'endpoints': self._extract_unique_endpoints(),
             'network_log': [asdict(req) for req in self.network_log],
+            'screenshots': [asdict(sc) for sc in self.screenshots],  # Vision API için
             'visited_urls': list(self.visited_urls),
             'statistics': {
                 'pages_crawled': len(self.visited_urls),
                 'network_requests': len(self.network_log),
                 'unique_endpoints': len(self.discovered_endpoints),
+                'screenshots_captured': len(self.screenshots),
                 'duration_ms': elapsed_ms
             }
         }
@@ -206,6 +219,10 @@ class RuntimeCrawler:
             # Wait for SPA to initialize
             await asyncio.sleep(1)  # Give JS time to execute
             
+            # SCREENSHOT CAPTURE (Vision API için)
+            if self.config.capture_screenshots:
+                await self._capture_screenshot(page, url)
+            
             # Simulate user interactions (clicks, scrolls, etc.)
             if self.config.simulate_user:
                 await self._simulate_user_interaction(page)
@@ -224,6 +241,42 @@ class RuntimeCrawler:
             logger.error(f"Error crawling {url}: {e}", exc_info=True)
         finally:
             await page.close()
+    
+    async def _capture_screenshot(self, page: Page, url: str):
+        """
+        Capture page screenshot for Vision API analysis
+        Converts to base64 for easy JSON serialization
+        """
+        try:
+            logger.debug(f"Capturing screenshot for {url}")
+            
+            # Take screenshot as bytes
+            screenshot_bytes = await page.screenshot(
+                type='png',
+                full_page=False  # Only visible viewport (saves tokens)
+            )
+            
+            # Convert to base64
+            import base64
+            base64_image = base64.b64encode(screenshot_bytes).decode('utf-8')
+            
+            # Get viewport size
+            viewport = page.viewport_size
+            
+            # Create Screenshot object
+            screenshot = Screenshot(
+                url=url,
+                timestamp=datetime.utcnow().isoformat() + 'Z',
+                base64_image=base64_image,
+                width=viewport['width'],
+                height=viewport['height']
+            )
+            
+            self.screenshots.append(screenshot)
+            logger.info(f"Screenshot captured: {url} ({len(base64_image)} bytes)")
+            
+        except Exception as e:
+            logger.warning(f"Screenshot capture failed for {url}: {e}")
     
     async def _simulate_user_interaction(self, page: Page):
         """
