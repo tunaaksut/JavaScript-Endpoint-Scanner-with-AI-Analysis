@@ -12,3 +12,6 @@ pydantic==2.5.0
 
 # Utilities
 python-dotenv==1.0.0
+
+# OpenAI API
+openai>=1.0.0

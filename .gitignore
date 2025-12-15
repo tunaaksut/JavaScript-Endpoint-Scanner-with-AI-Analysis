@@ -20,6 +20,8 @@ yarn-error.log*
 
 # API Keys & Secrets
 .env
+.env.*
+!.env.example
 *.key
 *api-key*
 

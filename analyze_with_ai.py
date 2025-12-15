@@ -13,6 +13,10 @@ import sys
 import os
 from openai import OpenAI
 from typing import List, Dict
+from dotenv import load_dotenv
+
+# .env dosyasından API key'i yükle
+load_dotenv()
 
 def load_scan_results(json_file):
     """Scan sonuçlarını yükle"""
