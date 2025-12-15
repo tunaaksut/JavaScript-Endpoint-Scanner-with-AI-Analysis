@@ -1,0 +1,242 @@
+name: JS Endpoint Security Scan
+
+# Triggers: PR events affecting JavaScript files
+on:
+  pull_request:
+    paths:
+      - '**.js'
+      - '**.jsx'
+      - '**.ts'
+      - '**.tsx'
+    types: [opened, synchronize, reopened]
+
+# Permissions: Read repo, write PR comments
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  scan-endpoints:
+    name: Scan JavaScript Endpoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff analysis
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: Install scanner dependencies
+        run: |
+          npm ci
+          pip install -r runtime/requirements.txt
+          npx playwright install chromium --with-deps
+      
+      - name: Get changed JavaScript files
+        id: changed-files
+        uses: tj-actions/changed-files@v41
+        with:
+          files: |
+            **.js
+            **.jsx
+            **.ts
+            **.tsx
+      
+      - name: Run JS Endpoint Scanner
+        id: scan
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SCAN_MODE: static  # Static-only for PR scans (faster)
+          ENABLE_LLM: true
+          LLM_BUDGET: 50  # Max 50 LLM calls per PR scan
+        run: |
+          # Create output directory
+          mkdir -p scan-results
+          
+          # Scan changed files only (incremental)
+          node cli.js scan \
+            --mode static \
+            --files "${{ steps.changed-files.outputs.all_changed_files }}" \
+            --output scan-results/pr-scan.json \
+            --i-have-permission \
+            --consent-ticket "GH-PR-${{ github.event.pull_request.number }}" \
+            --verbose
+          
+          # Generate summary for PR comment
+          node scripts/generate-pr-summary.js \
+            --input scan-results/pr-scan.json \
+            --output scan-results/pr-comment.md \
+            --threshold high
+      
+      - name: Check scan status
+        id: check-scan
+        run: |
+          # Parse scan results to determine if PR should be blocked
+          CRITICAL_COUNT=$(jq '[.findings.high_risk_findings[] | select(.severity == "critical")] | length' scan-results/pr-scan.json)
+          HIGH_COUNT=$(jq '[.findings.high_risk_findings[] | select(.severity == "high")] | length' scan-results/pr-scan.json)
+          
+          echo "critical_count=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
+          echo "high_count=$HIGH_COUNT" >> $GITHUB_OUTPUT
+          
+          # Set scan status (pass/warn/fail)
+          if [ "$CRITICAL_COUNT" -gt 0 ]; then
+            echo "status=fail" >> $GITHUB_OUTPUT
+            echo "status_emoji=🔴" >> $GITHUB_OUTPUT
+          elif [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "status=warn" >> $GITHUB_OUTPUT
+            echo "status_emoji=🟡" >> $GITHUB_OUTPUT
+          else
+            echo "status=pass" >> $GITHUB_OUTPUT
+            echo "status_emoji=🟢" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Post PR Comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const commentBody = fs.readFileSync('scan-results/pr-comment.md', 'utf8');
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🔍 JS Endpoint Scan Results')
+            );
+            
+            const commentPayload = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            };
+            
+            // Update or create comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                ...commentPayload,
+                comment_id: botComment.id
+              });
+            } else {
+              await github.rest.issues.createComment(commentPayload);
+            }
+      
+      - name: Upload scan artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: endpoint-scan-results
+          path: scan-results/
+          retention-days: 30
+      
+      - name: Export to SARIF (optional)
+        if: always()
+        run: |
+          node scripts/convert-to-sarif.js \
+            --input scan-results/pr-scan.json \
+            --output scan-results/results.sarif
+      
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: scan-results/results.sarif
+          category: js-endpoint-scanner
+      
+      - name: Fail if critical findings
+        if: steps.check-scan.outputs.status == 'fail'
+        run: |
+          echo "❌ Scan found ${{ steps.check-scan.outputs.critical_count }} critical security issues"
+          echo "Please review scan results and address critical findings before merging"
+          exit 1
+      
+      - name: Warn if high findings
+        if: steps.check-scan.outputs.status == 'warn'
+        run: |
+          echo "⚠️ Scan found ${{ steps.check-scan.outputs.high_count }} high-severity security issues"
+          echo "Review recommended, but not blocking merge (configurable policy)"
+          # Note: Does not exit 1, so PR can still merge (team decision)
+
+# Example PR Comment Template (generated by scripts/generate-pr-summary.js)
+# ---
+# ## 🔍 JS Endpoint Scan Results
+# 
+# **Status:** 🟡 Warning - High-severity findings detected
+# **Scan ID:** `a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6`
+# **Changed Files:** 3 JavaScript files
+# 
+# ### Summary
+# - **New Endpoints Discovered:** 5
+# - **Critical Risk:** 0
+# - **High Risk:** 2 ⚠️
+# - **Medium Risk:** 1
+# - **Low Risk:** 2
+# 
+# ### 🔴 Top Findings
+# 
+# #### 1. Missing Authorization Check in Admin Endpoint
+# - **Severity:** HIGH
+# - **Endpoint:** `DELETE /api/admin/users/{userId}`
+# - **File:** `src/admin/UserManagement.jsx:42`
+# - **Issue:** No server-side ownership validation detected
+# - **Recommendation:** Implement hierarchy check before allowing user deletion
+# - **CWE:** CWE-639 (Authorization Bypass)
+# 
+# #### 2. Tainted Parameter in URL Construction
+# - **Severity:** HIGH
+# - **Endpoint:** `GET /api/search?query={userInput}`
+# - **File:** `src/components/Search.jsx:18`
+# - **Issue:** User input flows directly to URL without sanitization
+# - **Recommendation:** URL-encode user input before constructing fetch URL
+# - **CWE:** CWE-20 (Improper Input Validation)
+# 
+# ### 📊 Endpoint Discovery
+# 
+# | Method | Endpoint Template | Risk Level |
+# |--------|-------------------|------------|
+# | DELETE | `/api/admin/users/{userId}` | 🔴 HIGH |
+# | GET | `/api/search?query={userInput}` | 🔴 HIGH |
+# | POST | `/api/orders` | 🟡 MEDIUM |
+# | GET | `/api/products/{productId}` | 🟢 LOW |
+# | GET | `/api/categories` | 🟢 LOW |
+# 
+# ### 🔗 Resources
+# - [Full Scan Report](https://scanner.example.com/scans/a1b2c3d4) (requires VPN)
+# - [Download SARIF](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+# - [Security Policy](https://github.com/${{ github.repository }}/blob/main/SECURITY.md)
+# 
+# ---
+# 
+# **Action Required:** Review and address HIGH-severity findings before merging.
+# 
+# <details>
+# <summary>ℹ️ Scan Configuration</summary>
+# 
+# - **Scanner Version:** 1.0.0
+# - **Scan Mode:** Static AST analysis only (runtime scan not performed in PR)
+# - **AI Inference:** Enabled (budget: 50 LLM calls)
+# - **Cache Hit Rate:** 78%
+# - **Scan Duration:** 23 seconds
+# 
+# </details>
+# ---

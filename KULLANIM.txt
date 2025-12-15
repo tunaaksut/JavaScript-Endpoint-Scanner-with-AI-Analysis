@@ -1,0 +1,452 @@
+# 🚀 JS Endpoint Scanner - Kullanım Rehberi
+
+## 📖 Ne İşe Yarar?
+
+Bu araç, web sitelerindeki **gizli API endpoint'lerini** otomatik olarak bulur.
+- Tarayıcı ile siteyi dolaşır
+- Tüm network trafiğini yakalar
+- API çağrılarını (fetch, axios, XHR) listeler
+- JSON formatında sonuç verir
+
+**Kullanım Alanı:** Bug bounty, penetrasyon testi, güvenlik araştırması
+
+---
+
+## ⚡ Hızlı Başlangıç
+
+### 1. Gereksinimler
+
+```powershell
+# Python 3.10+ ve Node.js 18+ gerekli
+python --version
+node --version
+```
+
+### 2. Kurulum (İlk Kez)
+
+```powershell
+# Virtual environment oluştur
+python -m venv .venv
+
+# Aktive et
+.\.venv\Scripts\Activate.ps1
+
+# Python bağımlılıkları
+pip install playwright
+
+# Chromium browser indir
+python -m playwright install chromium
+
+# Node.js bağımlılıkları
+npm install
+```
+
+### 3. Kullanım
+
+#### 🎯 Temel Kullanım
+```powershell
+python scan_website.py https://example.com
+```
+
+#### 🔧 Özel Ayarlar
+```powershell
+# Daha fazla sayfa tara (50 sayfa)
+python scan_website.py https://example.com --pages 50
+
+# Daha derin tara (5 seviye)
+python scan_website.py https://example.com --pages 40 --depth 5
+
+# Hızlı tarama (az sayfa)
+python scan_website.py https://example.com --pages 10 --depth 2
+```
+
+#### 💨 PowerShell Script ile (Kolay)
+```powershell
+# Basit
+.\scan.ps1 https://example.com
+
+# Özel
+.\scan.ps1 https://example.com -Pages 50 -Depth 4
+```
+
+---
+
+## 📊 Sonuçlar
+
+### Çıktı Dosyası
+Tarama bittiğinde `scan-SITE_ADI.json` dosyası oluşur.
+
+**Örnek içerik:**
+```json
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "url_template": "/api/users/{userId}",
+      "protocol": "https",
+      "parameters": [
+        {"name": "userId", "location": "path"}
+      ]
+    },
+    {
+      "method": "DELETE",
+      "url_template": "/api/products/{productId}",
+      "parameters": [
+        {"name": "productId", "location": "path"}
+      ]
+    }
+  ],
+  "statistics": {
+    "pages_crawled": 25,
+    "network_requests": 142,
+    "unique_endpoints": 68,
+    "duration_ms": 45230
+  }
+}
+```
+
+### Terminal Çıktısı
+```
+============================================================
+📊 SCAN RESULTS
+============================================================
+✓ Pages crawled: 25
+✓ Network requests: 142
+✓ Unique endpoints: 68
+✓ Duration: 45230ms
+
+============================================================
+🎯 DISCOVERED API ENDPOINTS
+============================================================
+
+1. GET    /api/users/{userId}
+   Parameters: userId
+
+2. DELETE /api/products/{productId}
+   Parameters: productId
+
+3. POST   /api/orders
+   Parameters: customerId, items
+
+...
+
+💾 Full results saved to: scan-example.com.json
+✅ Scan completed successfully!
+```
+
+---
+
+## 🔍 Gerçek Örnekler
+
+### E-Ticaret Sitesi
+```powershell
+python scan_website.py https://www.lcw.com --pages 50 --depth 4
+```
+
+**Bulunan endpoint örnekleri:**
+- `GET /ajax/authentication/GetCurrentCustomer` → IDOR testi yap
+- `DELETE /ajax/users/{userId}` → Authorization bypass kontrol et
+- `GET /ajax/FavoriteList/GetInsiderFavoriteList` → BOLA testi
+
+### Sosyal Medya Platformu
+```powershell
+python scan_website.py https://www.example-social.com --pages 60
+```
+
+**Bulunabilecekler:**
+- `/api/v1/messages/send` → Rate limiting var mı?
+- `/api/v1/users/{id}/profile` → Başkasının profili okunabiliyor mu?
+- `/api/v1/admin/deleteUser` → Admin endpoint'i açıkta mı?
+
+### API Backend
+```powershell
+python scan_website.py http://localhost:3000 --pages 20
+```
+
+---
+
+## ⚙️ Parametreler
+
+| Parametre | Açıklama | Varsayılan | Örnek |
+|-----------|----------|-----------|-------|
+| `url` | Hedef site URL'i | (zorunlu) | `https://example.com` |
+| `--pages` | Maksimum sayfa sayısı | 30 | `--pages 50` |
+| `--depth` | Maksimum tarama derinliği | 3 | `--depth 5` |
+
+### Tarama Hızı vs Kapsam
+
+| Ayar | Süre | Endpoint Sayısı | Kullanım |
+|------|------|----------------|----------|
+| `--pages 10 --depth 2` | 1-2 dk | 20-40 | Hızlı keşif |
+| `--pages 30 --depth 3` | 3-5 dk | 50-80 | Normal tarama |
+| `--pages 60 --depth 4` | 8-12 dk | 100-150 | Derin tarama |
+| `--pages 100 --depth 5` | 15-20 dk | 150-250+ | Agresif tarama |
+
+---
+
+## 🛡️ Yasal Uyarı
+
+**⚠️ ÖNEMLİ:** Bu aracı kullanmadan önce:
+
+1. **Yazılı izin alın** (şirketin güvenlik ekibinden)
+2. **Bug bounty programına kayıt olun** (varsa)
+3. **Yasal sorumluluk size aittir**
+
+**Yasadışı kullanım:**
+- 🇹🇷 TCK Madde 243/1 - 2-6 yıl hapis
+- 🇺🇸 CFAA - Federal suç
+- 🇪🇺 GDPR ihlali
+
+**Yasal kullanım:**
+- ✅ Kendi projelerinizi test edin
+- ✅ Bug bounty programlarına katılın (HackerOne, Bugcrowd)
+- ✅ Şirket içi güvenlik testleri (izinle)
+- ✅ Test ortamlarını kullanın (Juice Shop, DVWA)
+
+---
+
+## 🐛 Sorun Giderme
+
+### Hata: "playwright not found"
+```powershell
+pip install playwright
+python -m playwright install chromium
+```
+
+### Hata: "Timeout exceeded"
+Site çok yavaş yükleniyor. Daha az sayfa tarıyın:
+```powershell
+python scan_website.py https://example.com --pages 10
+```
+
+### Hata: "No endpoints found"
+Site tamamen statik olabilir veya API çağrıları farklı formatta. 
+Network trafiğini manuel kontrol edin.
+
+### Chromium indirme çok yavaş
+Normal - 150MB dosya indiriliyor. İnternet bağlantınızı kontrol edin.
+
+---
+
+## 📁 Proje Yapısı
+
+```
+JavaScriptEndpoint/
+├── scan_website.py       # Ana tarayıcı (BUNU KULLAN)
+├── scan.ps1              # PowerShell wrapper
+├── cli.js                # Node.js CLI (opsiyonel)
+├── src/
+│   ├── core/
+│   │   └── extract.js    # AST parser
+│   ├── runtime/
+│   │   └── crawl.py      # Browser crawler
+│   └── analysis/
+│       └── taint.js      # Güvenlik analizi
+├── lcw-scan-results.json # Örnek sonuç
+├── package.json          # Node bağımlılıkları
+└── requirements.txt      # Python bağımlılıkları
+```
+
+---
+
+## 💡 İpuçları
+
+### 1. Hedefli Tarama
+Anasayfa yerine direkt kategori sayfasından başla:
+```powershell
+python scan_website.py https://example.com/products --pages 30
+```
+
+### 2. Sonuçları Filtreleme
+```powershell
+# JSON'dan sadece DELETE endpoint'leri göster (PowerShell)
+Get-Content scan-example.com.json | ConvertFrom-Json | 
+  Select-Object -ExpandProperty endpoints | 
+  Where-Object {$_.method -eq "DELETE"} | 
+  Select-Object method, url_template
+```
+
+### 3. Birden Fazla Site
+```powershell
+# Batch tarama
+$sites = @("site1.com", "site2.com", "site3.com")
+foreach ($site in $sites) {
+    python scan_website.py "https://$site" --pages 20
+}
+```
+
+### 4. Sonuçları Karşılaştırma
+Aynı siteyi farklı zamanlarda tara, yeni endpoint'leri bul:
+```powershell
+python scan_website.py https://example.com --pages 30
+# 1 hafta sonra
+python scan_website.py https://example.com --pages 30
+# İki JSON dosyasını karşılaştır
+```
+
+---
+
+## 🚀 Hızlı Başvuru
+
+**En sık kullanılan komutlar:**
+
+```powershell
+# Normal tarama
+python scan_website.py https://example.com
+
+# Derin tarama
+python scan_website.py https://example.com --pages 60 --depth 4
+
+# Hızlı tarama
+python scan_website.py https://example.com --pages 10
+
+# PowerShell ile
+.\scan.ps1 https://example.com -Pages 40
+```
+
+---
+
+## 📞 Destek
+
+**Sık karşılaşılan sorunlar:**
+1. Chromium indirme hatası → İnternet bağlantısını kontrol et
+2. Timeout hatası → `--pages` değerini düşür
+3. Endpoint bulunmuyor → Site statik olabilir
+
+**İleri düzey kullanım:**
+- `src/runtime/crawl.py` dosyasında `CrawlConfig` değerlerini değiştir
+- `timeout_ms`, `simulate_user` gibi parametreleri ayarla
+
+---
+
+## ✅ Başarılı Tarama Kontrol Listesi
+
+- [ ] Virtual environment aktif (`(.venv)` görünüyor)
+- [ ] Chromium indirilmiş (`python -m playwright install chromium`)
+- [ ] Hedef site bug bounty programında veya izin alınmış
+- [ ] Komut doğru: `python scan_website.py https://SITE.com`
+- [ ] Terminal açık ve bekliyor
+- [ ] Sonuç dosyası oluştu (`scan-SITE.com.json`)
+
+---
+
+---
+
+## 🤖 AI İLE OTOMATİK ANALİZ (YENİ!)
+
+### OpenAI API Entegrasyonu
+
+Bulunan endpoint'leri **otomatik** olarak güvenlik açıkları için analiz et!
+
+**Ne Tespit Eder:**
+- 🔴 IDOR (Insecure Direct Object Reference)
+- 🔴 BOLA (Broken Object Level Authorization)
+- 🟠 SSRF (Server-Side Request Forgery)
+- 🟠 Mass Assignment
+- 🟡 Admin endpoint'leri
+
+### Kurulum
+
+```powershell
+# OpenAI kütüphanesi (zaten yüklü)
+pip install openai
+
+# API Key'ini ayarla
+$env:OPENAI_API_KEY="sk-your-openai-api-key-here"
+```
+
+### Kullanım
+
+```powershell
+# 1. Önce siteyi tara
+python scan_website.py https://www.lcw.com --pages 30
+
+# 2. AI ile analiz et
+python analyze_with_ai.py scan-www.lcw.com.json
+
+# GPT-4 ile analiz (daha detaylı, biraz pahalı)
+python analyze_with_ai.py scan-www.lcw.com.json --model gpt-4
+
+# GPT-3.5 (varsayılan, ucuz, hızlı)
+python analyze_with_ai.py scan-www.lcw.com.json --model gpt-3.5-turbo
+```
+
+### Örnek Çıktı
+
+```
+🤖 AI analizi başlatılıyor...
+📊 50 endpoint analiz ediliyor...
+🔧 Model: gpt-3.5-turbo
+
+============================================================
+⚠️  TESPİT EDİLEN GÜVENLİK RİSKLERİ
+============================================================
+
+🔴 Risk #1 - Critical
+   Endpoint: DELETE /api/users/{userId}
+   Tip: IDOR
+   CVSS Score: 9.1
+   Açıklama: userId parametresi ile başka kullanıcılar silinebilir
+   Test: Farklı userId değerleri ile DELETE isteği gönder
+
+🟠 Risk #2 - High
+   Endpoint: GET /api/orders/{orderId}
+   Tip: BOLA
+   CVSS Score: 7.5
+   Açıklama: Başka kullanıcının siparişi görüntülenebilir
+   Test: Kendi orderId'nden farklı ID'lerle istek at
+
+============================================================
+
+💾 Analiz kaydedildi: scan-www.lcw.com-ai-analysis.json
+
+📊 Özet: 1 Critical, 3 High risk bulundu
+```
+
+### Maliyet
+
+**GPT-3.5-Turbo (Önerilen):**
+- ~$0.0005 per analiz (50 endpoint)
+- Hızlı, ekonomik, yeterince iyi
+
+**GPT-4:**
+- ~$0.02 per analiz (50 endpoint)
+- Daha detaylı, daha pahalı
+
+### Komple İş Akışı
+
+```powershell
+# 1. Siteyi tara
+python scan_website.py https://target.com --pages 40
+
+# 2. AI analizi yap
+python analyze_with_ai.py scan-target.com.json
+
+# 3. Sonuçları oku
+Get-Content scan-target.com-ai-analysis.json | ConvertFrom-Json | 
+  Select-Object -ExpandProperty risks | 
+  Where-Object {$_.risk_level -eq "Critical"}
+```
+
+### İpuçları
+
+1. **İlk 50 endpoint analiz edilir** (token limiti için)
+2. **GPT-3.5 yeterlidir** - GPT-4'e gerek yok genelde
+3. **API Key'i güvende tut** - .gitignore'a ekle
+4. **Birden fazla tarama** için loop kullan:
+
+```powershell
+$sites = @("lcw.com", "trendyol.com", "example.com")
+foreach ($site in $sites) {
+    python scan_website.py "https://www.$site" --pages 30
+    python analyze_with_ai.py "scan-www.$site.json"
+}
+```
+
+---
+
+**Son güncelleme:** Aralık 2025
+**Versiyon:** 1.1 (AI Entegrasyonu Eklendi)
+**Geliştirici:** Bug bounty aracı
+
+🔥 İyi taramalar!

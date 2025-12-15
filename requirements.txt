@@ -1,0 +1,14 @@
+# Python Dependencies for JS Endpoint Scanner
+# Runtime Crawler Module
+
+# Headless browser automation (latest version compatible with Python 3.13)
+playwright>=1.48.0
+
+# Async HTTP client (optional, for API validation)
+aiohttp==3.9.1
+
+# Data validation
+pydantic==2.5.0
+
+# Utilities
+python-dotenv==1.0.0
