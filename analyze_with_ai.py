@@ -109,12 +109,12 @@ risk_detected=true ise mutlaka reasoning açıkla."""
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "Sen bir API güvenlik uzmanısın. JSON formatında structured output üret."},
+                {"role": "system", "content": "Sen bir API güvenlik uzmanısın. SADECE geçerli JSON üret. Markdown, açıklama veya başka text YASAK."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},  # STRUCTURED OUTPUT GUARANTEE
-            temperature=0.3,
-            max_tokens=3000
+            temperature=0.1,  # Daha deterministik (0.3'ten düşük)
+            max_tokens=4000  # Daha fazla endpoint için
         )
         
         # DOĞRUDAN JSON.LOADS (regex/parsing YOK!)
@@ -131,7 +131,7 @@ risk_detected=true ise mutlaka reasoning açıkla."""
         print(f"❌ AI analizi hatası: {e}")
         return {"error": str(e), "analysis": []}
 
-def analyze_screenshots_with_vision(screenshots: List[Dict], api_key: str, model: str = "gpt-4o-mini") -> Dict:
+def analyze_screenshots_with_vision(screenshots: List[Dict], api_key: str, model: str = "gpt-4o") -> Dict:
     """
     OpenAI Vision API ile ekran görüntülerini analiz et
     
@@ -366,7 +366,7 @@ def main():
     # Parametreler
     scan_file = sys.argv[1]
     endpoint_model = "gpt-3.5-turbo"  # Endpoint analizi için (ucuz)
-    vision_model = "gpt-4o-mini"      # Vision analizi için (maliyet-etkin)
+    vision_model = "gpt-4o"           # Vision analizi için (premium quality)
     vision_only = '--vision-only' in sys.argv
     
     if '--model' in sys.argv:
